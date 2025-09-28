@@ -1,5 +1,8 @@
-package com.GigaChatMyBot;
+package com.GigaChatMyBot.gigachat;
 
+import com.GigaChatMyBot.model.GigaChatModel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -7,47 +10,38 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 
 /**
- * Класс GigaChatAPI реализует взаимодействие с API GigaChat.
- * <p>
- * Основные задачи класса:
- * - Получение OAuth Access Token через API аутентификации
- * - Отправка запросов на чат у GigaChat и получение ответов
- * <p>
- * Использует HttpClient из Java 11+ для сетевых запросов.
- * <p>
- * Автор: vladimir_shi
- * Дата: 23.09.2025
+ * Класс реализует взаимодействие с API GigaChat.
+ * Получает OAuth токен и отправляет запросы в чат GigaChat.
+ * Использует HttpClient из Java 11+.
+ * @author vladimir_shi
+ * @since 23.09.2025
  */
 public class GigaChatAPI {
-    // Объект с конфигурацией (URL, ключи, параметры)
-    private final GigaChatConfig config;
-    // HttpClient — отвечает за сетевые запросы, создаётся один раз на весь класс
-    private final HttpClient client;
+    private final GigaChatModel config; // Конфигурация с URL, ключами и параметрами
+    private final HttpClient client; // HttpClient для сетевых запросов
+    private static final Logger logger = LoggerFactory.getLogger(GigaChatAPI.class); // Логгер для ошибок и инициализации
 
     /**
      * Конструктор.
      * Принимает объект конфигурации и инициализирует HttpClient.
-     *
      * @param config конфигурация с URL, ключами и параметрами
      */
-    public GigaChatAPI(GigaChatConfig config) {
+    public GigaChatAPI(GigaChatModel config) {
         this.config = config;
         this.client = HttpClient.newHttpClient();
+        logger.info("GigaChatAPI инициализирован с URL OAuth: {}, Chat: {}", config.getOauthUrl(), config.getChatUrl());
     }
 
     /**
-     * Получение Access Token.
-     * Формирует и отправляет POST-запрос на endpoint OAuth для получения токена.
-     *
-     * @param rqUid уникальный идентификатор запроса (например, UUID)
-     * @return строка Access Token или null при ошибке
-     * @throws IOException          при ошибках ввода-вывода
-     * @throws InterruptedException если был прерван запрос
+     * Получает Access Token через POST-запрос на OAuth endpoint.
+     * @param rqUid уникальный ID запроса
+     * @return токен или null при ошибке
+     * @throws IOException при сетевых ошибках
+     * @throws InterruptedException при прерывании
      */
     public String getAccessToken(String rqUid) throws IOException, InterruptedException {
         // Тело запроса с указанием scope (области доступа)
         String requestBody = "scope=" + config.getScope();
-
         // Строим HTTP-запрос методом POST с нужными заголовками
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(config.getOauthUrl()))
@@ -57,6 +51,7 @@ public class GigaChatAPI {
                 .header("Authorization", config.getAuthorizationKeyBasic())  // Basic ключ
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                 .build();
+
         // Отправляем запрос и получаем ответ в виде строки
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
@@ -64,41 +59,37 @@ public class GigaChatAPI {
         if (response.statusCode() == 200) {
             return extractAccessToken(response.body());
         } else {
-            // Иначе выводим ошибку и возвращаем null
-            System.err.println("Ошибка получения токена: " + response.statusCode());
-            System.err.println(response.body());
+            logger.error("Не удалось получить access token. Статус: {}, Ответ: {}", response.statusCode(), response.body());
             return null;
         }
     }
 
     /**
-     * Вспомогательный метод для парсинга Access Token из JSON-ответа.
-     * <p>
-     * Работает упрощённо: ищет строку "access_token":"значение" и возвращает значение.
-     *
-     * @param json строка JSON с ответом сервера
-     * @return Access Token или null, если не найден
+     * Парсит Access Token из JSON-ответа.
+     * Ищет "access_token":"значение".
+     * @param json JSON-строка
+     * @return токен или null
      */
     private String extractAccessToken(String json) {
         String marker = "\"access_token\":\"";
         int start = json.indexOf(marker);
-        if (start < 0) return null;
+        if (start < 0) {
+            logger.warn("Маркер access_token не найден в JSON");
+            return null;
+        }
         start += marker.length();
         int end = json.indexOf("\"", start);
-        if (end < 0) return null;
-        return json.substring(start, end);
+        return (end < 0) ? null : json.substring(start, end);
     }
 
     /**
-     * Отправка запроса на chat completion GigaChat.
-     * Формирует JSON с промптом, моделью и дополнительными параметрами.
-     * Отправляет POST-запрос с токеном авторизации.
-     *
-     * @param accessToken valid Bearer токен для авторизации
-     * @param prompt      запрос пользователя, который отправляем в чат
-     * @return ответ от GigaChat или текст ошибки
-     * @throws IOException          исключения сетевого ввода-вывода
-     * @throws InterruptedException если запрос был прерван
+     * Отправляет запрос на chat completion с Bearer-токеном.
+     * Формирует JSON с моделью и промптом.
+     * @param accessToken Bearer-токен
+     * @param prompt текст запроса
+     * @return ответ GigaChat или ошибка
+     * @throws IOException при сетевых ошибках
+     * @throws InterruptedException при прерывании
      */
     public String sendChatRequest(String accessToken, String prompt) throws IOException, InterruptedException {
         // Формируем тело запроса, подставляя модель из конфигурации и экранируя JSON содержимое
@@ -132,7 +123,7 @@ public class GigaChatAPI {
         if (response.statusCode() == 200) {
             return parseChatResponse(response.body());
         } else {
-            // Иначе возвращаем описание ошибки
+            logger.error("Ошибка в Chat API. Статус: {}, Ответ: {}", response.statusCode(), response.body());
             return "Ошибка при вызове GigaChat: " + response.statusCode() + "\n" + response.body();
         }
     }
@@ -140,7 +131,6 @@ public class GigaChatAPI {
     /**
      * Базовое экранирование символов в JSON строке.
      * Заменяет обратные слэши и кавычки, чтобы JSON был корректным.
-     *
      * @param text текст для экранирования
      * @return экранированный текст
      */
@@ -150,9 +140,7 @@ public class GigaChatAPI {
 
     /**
      * Простейший парсер для извлечения содержимого сообщения ассистента из JSON-ответа.
-     * <p>
      * Ищет поле content в JSON и возвращает его значение с декодированием escape-последовательностей.
-     *
      * @param json строка JSON с ответом чата
      * @return текст ответа или сообщение об ошибке, если контент не найден
      */

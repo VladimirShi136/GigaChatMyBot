@@ -1,4 +1,4 @@
-package com.GigaChatMyBot;
+package com.GigaChatMyBot.model;
 
 /**
  * Класс для хранения конфигурационных параметров, необходимых для работы с API GigaChat.
@@ -8,7 +8,7 @@ package com.GigaChatMyBot;
  * @author vladimir_shi
  * @since 23.09.2025
  */
-public class GigaChatConfig {
+public class GigaChatModel {
     // URL для получения OAuth токена доступа
     private final String oauthUrl;
     // URL для обращения к сервису GigaChat
@@ -31,7 +31,7 @@ public class GigaChatConfig {
      * @param scope                 область доступа OAuth
      * @param modelName             имя модели для запросов к GigaChat
      */
-    public GigaChatConfig(String oauthUrl, String chatUrl, String authorizationKeyBasic, String scope, String modelName) {
+    public GigaChatModel(String oauthUrl, String chatUrl, String authorizationKeyBasic, String scope, String modelName) {
         this.oauthUrl = oauthUrl;
         this.chatUrl = chatUrl;
         this.authorizationKeyBasic = authorizationKeyBasic;
